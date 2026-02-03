@@ -2,465 +2,232 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Active Fuse Box Timer</title>
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
+    <title>Life Timer | G-5600UE Dashboard</title>
     <style>
         :root {
-            --bg-color: #f4f4f9;
-            --text-color: #333;
-            --muted-text-color: #666;
-            --bar-bg-color: #eee;
-            --ruler-line-color: #666;
-            --inside-label-color: #333;
-            --decayed-color: #6A0DAD;
-            --spent-color: #e0e0e0;
-            --future-color: #39FF14;
-            --cache-bg-color: #ddd;
-            --heap-bg-color: #2a2a2a;
-            --ticket-ready-color: #4CAF50; 
-            --ticket-torn-color: #9932CC;
-        }
-
-        html.dark-mode {
             --bg-color: #222;
             --text-color: #eee;
             --muted-text-color: #aaa;
             --bar-bg-color: #444;
             --ruler-line-color: #aaa;
-            --inside-label-color: #eee;
             --decayed-color: #9932CC;
             --spent-color: #3d3d3d;      
             --future-color: #66FF66;
             --cache-bg-color: #333;
-            --heap-bg-color: #1a1a1a;
             --ticket-ready-color: #66FF66; 
-            --ticket-torn-color: #9932CC;
-        }
-
-        @keyframes marker-pulse {
-            0% { box-shadow: 0 0 5px 3px rgba(255, 0, 0, 0.4); }
-            50% { box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.8); }
-            100% { box-shadow: 0 0 5px 3px rgba(255, 0, 0, 0.4); }
         }
 
         body {
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
             margin: 0;
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
-            overflow-x: hidden;
-            padding: 40px 0 50px 0;
-            transition: background-color 0.3s, color 0.3s; 
+            padding: 40px 0;
         }
 
-        .header-container { display: flex; align-items: center; justify-content: center; width: 1200px; margin-bottom: 20px; }
-        .casio-clock { margin-right: 30px; filter: drop-shadow(0 0 2px rgba(0,0,0,0.2)); }
+        .header-container { display: flex; align-items: center; width: 1200px; margin-bottom: 20px; }
+        .casio-clock { margin-right: 30px; }
         #hour-hand, #minute-hand { transform-origin: 50px 50px; transition: transform 0.5s cubic-bezier(0.4, 2.1, 0.6, 1); }
 
-        .summary-block { text-align: left; color: var(--text-color); }
-        #day-of-week { font-size: 2.2em; font-weight: 800; margin-bottom: 5px; }
-        #yearly-progress { font-size: 1.1em; color: var(--muted-text-color); margin-bottom: 10px; }
-        #current-status { font-size: 1.0em; color: var(--muted-text-color); font-weight: 500; margin-bottom: 15px;}
-        #days-spent-text { color: var(--decayed-color); font-weight: bold; }
+        .summary-block { text-align: left; }
+        #day-of-week { font-size: 2.2em; font-weight: 800; }
+        #yearly-progress { color: var(--muted-text-color); margin-bottom: 10px; }
 
-        .micro-metrics-row { display: flex; justify-content: center; gap: 30px; margin-bottom: 25px; width: 1200px; }
-        .metric-gauge { width: 180px; text-align: left; }
-        .metric-label { font-size: 0.65em; font-weight: bold; text-transform: uppercase; color: var(--muted-text-color); display: flex; justify-content: space-between; margin-bottom: 4px; }
-        .metric-bar-bg { width: 100%; height: 6px; background: var(--bar-bg-color); border-radius: 3px; overflow: hidden; }
-        .metric-fill { height: 100%; background: var(--decayed-color); width: 0%; transition: width 0.5s; }
-
-        .bar-container { width: 1200px; position: relative; text-align: center; z-index: 1; }
-        #status-display { font-size: 2.8em; font-weight: bold; margin-bottom: 25px; color: var(--text-color); }
+        .bar-container { width: 1200px; text-align: center; }
+        #status-display { font-size: 2.8em; font-weight: bold; margin-bottom: 25px; }
         
         .progress-bar { width: 100%; height: 80px; background-color: var(--bar-bg-color); border-radius: 4px; overflow: hidden; position: relative; }
-        .sun-path-track { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(to right, #191970, #FFD700 50%, #4B0082); opacity: 0.6; z-index: 2; }
-        
-        #progress-fill { height: 100%; width: 100%; transform-origin: left; background-color: var(--spent-color) !important; }
-        #progress-marker { position: absolute; top: 70px; left: 0; height: 100px; width: 3px; background-color: #FF0000; z-index: 10; transform: translateX(0px); }
-        .low-time-pulse { animation: marker-pulse 1.5s infinite alternate; }
+        #progress-fill { height: 100%; width: 100%; transform-origin: left; background-color: var(--spent-color); }
+        #progress-marker { position: absolute; top: 70px; left: 0; height: 100px; width: 3px; background-color: #FF0000; z-index: 10; }
 
-        .ruler-container { width: 100%; height: 55px; position: relative; margin-bottom: 5px; }
-        .ruler-mark { position: absolute; bottom: 0; background-color: var(--ruler-line-color); width: 1px; z-index: 5; transform: translateX(-50%); }
-        .mark-hour { height: 10px; }
-        .mark-30min { height: 7px; }
-        .mark-label { position: absolute; transform: translateX(-50%); white-space: nowrap; z-index: 9; }
-        .label-hour { font-size: 0.9em; top: 5px; font-weight: bold; color: var(--text-color); }
-        .label-inside { font-size: 0.8em; font-weight: 500; color: var(--inside-label-color); top: 90px; text-shadow: 0 0 3px rgba(0, 0, 0, 0.2); }
+        .pomodoro-flex { display: flex; justify-content: space-between; width: 1140px; padding: 30px; background: #333; border-radius: 8px; margin-top: 40px; border: 1px solid #444; }
+        
+        .pomo-log-column { width: 30%; background: #222; border: 1px solid #555; border-radius: 4px; display: flex; flex-direction: column; height: 220px; }
+        .log-header { font-size: 0.7em; padding: 8px; border-bottom: 1px solid #555; background: #444; display: flex; justify-content: space-between; font-weight: bold; }
+        .log-body { flex-grow: 1; overflow-y: auto; font-family: monospace; font-size: 0.85em; }
+        .log-entry { padding: 4px 8px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
+        .log-tag { font-size: 0.7em; background: #9932CC; padding: 2px 4px; border-radius: 3px; margin-left: 5px; }
 
-        details { width: 1200px; margin-top: 40px; border-top: 1px solid var(--muted-text-color); padding-top: 20px; }
-        summary { cursor: pointer; font-weight: bold; font-size: 1.1em; color: var(--muted-text-color); text-align: center; list-style: none; padding: 10px; }
-        
-        .pomodoro-flex { display: flex; justify-content: space-between; align-items: stretch; padding: 30px; background: var(--bar-bg-color); border-radius: 8px; gap: 20px; }
-        
-        .pomo-log-column { width: 28%; background: var(--bg-color); border: 1px solid var(--muted-text-color); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
-        .log-header { font-size: 0.7em; font-weight: bold; padding: 8px; border-bottom: 1px solid var(--muted-text-color); background: var(--cache-bg-color); display: flex; justify-content: space-between; }
-        .log-body { flex-grow: 1; overflow-y: auto; max-height: 200px; font-family: monospace; font-size: 0.85em; }
-        .log-entry { padding: 4px 8px; border-bottom: 1px solid var(--bar-bg-color); display: flex; justify-content: space-between; align-items: center;}
-        .log-entry:nth-child(even) { background: rgba(0,0,0,0.03); }
-        .log-tag { font-size: 0.7em; background: var(--spent-color); padding: 2px 4px; border-radius: 3px; color: var(--muted-text-color); }
+        .controls { width: 25%; }
+        select, button { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; }
+        select { background: #444; color: #fff; }
+        #pomo-start { background: #66FF66; color: #000; }
+        #pomo-stop { background: #f44336; color: #fff; }
 
-        .pomodoro-controls { width: 22%; text-align: left; }
-        .pomodoro-visuals { width: 45%; display: flex; justify-content: space-around; align-items: center; }
-        
-        .circle-unit { text-align: center; position: relative; }
-        .circle-unit label { display: block; margin-top: 10px; font-size: 0.8em; font-weight: bold; color: var(--muted-text-color); text-transform: uppercase; }
-        
-        #pomo-stats-line { display: none; margin-top: 20px; align-items: center; gap: 15px; }
-        .stat-box { padding: 8px 15px; border-radius: 4px; background: var(--bg-color); border: 1px solid var(--muted-text-color); min-width: 80px; text-align: center; }
-        .stat-label { font-size: 0.6em; display: block; color: var(--muted-text-color); text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
-        .stat-value { font-family: monospace; font-size: 1.4em; font-weight: bold; }
-
+        .visuals { width: 40%; display: flex; justify-content: space-around; align-items: center; }
         .timer-svg { transform: rotate(-90deg); }
-        .circle-bg { fill: none; stroke: var(--spent-color); stroke-width: 4; }
-        .circle-fill { fill: currentColor; transition: r 0.3s, fill 0.3s; }
-
-        #annual-heatmap-container { width: 1200px; margin-top: 30px; padding: 20px; border: 1px dashed var(--muted-text-color); text-align: center; }
-        #annual-heatmap-grid { display: flex; justify-content: center; gap: 10px; }
-        .month-column { width: 60px; display: flex; flex-direction: column; align-items: center; }
-        .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 5px; border: 1px solid var(--muted-text-color); padding: 2px; background-color: var(--bar-bg-color); }
-        .day-block { width: 5px; height: 5px; border-radius: 50%; opacity: 0.8; }
-        .decayed { background-color: var(--decayed-color); }
-        .future { background-color: var(--future-color); }
-        .today-marker { background-color: #FFFF00; border: 1px solid var(--text-color); animation: pulse-today 1.5s infinite alternate; }
-        #mode-toggle { position: fixed; top: 20px; right: 20px; width: 40px; height: 40px; cursor: pointer; border: 2px solid var(--text-color); background-color: var(--bar-bg-color); color: var(--text-color); border-radius: 50%; z-index: 100; display: flex; justify-content: center; align-items: center; }
+        .circle-bg { fill: none; stroke: #444; stroke-width: 4; }
+        .circle-fill { fill: #66FF66; transition: r 0.3s; }
+        .label-sub { font-size: 0.7em; text-transform: uppercase; color: #aaa; text-align: center; margin-top: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
-    
+
     <div class="header-container">
         <div class="casio-clock">
             <svg width="100" height="100" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="48" fill="none" stroke="var(--muted-text-color)" stroke-width="2" />
-                <circle cx="50" cy="50" r="35" fill="none" stroke="var(--muted-text-color)" stroke-width="1" stroke-dasharray="2,2" />
-                <line id="hour-hand" x1="50" y1="50" x2="50" y2="32" stroke="var(--text-color)" stroke-width="4" stroke-linecap="round" />
-                <line id="minute-hand" x1="50" y1="50" x2="50" y2="15" stroke="var(--future-color)" stroke-width="2" stroke-linecap="round" />
-                <circle cx="50" cy="50" r="3" fill="var(--text-color)" />
+                <circle cx="50" cy="50" r="48" fill="none" stroke="#666" stroke-width="2" />
+                <line id="hour-hand" x1="50" y1="50" x2="50" y2="32" stroke="#eee" stroke-width="4" stroke-linecap="round" />
+                <line id="minute-hand" x1="50" y1="50" x2="50" y2="15" stroke="#66FF66" stroke-width="2" stroke-linecap="round" />
             </svg>
         </div>
-
         <div class="summary-block">
             <div id="day-of-week"></div>
-            <div id="yearly-progress">
-                (<span id="days-spent-text"></span> days spent, 
-                <span id="days-remaining-text"></span> days remaining in <span id="current-year"></span> — 
-                <span id="year-percentage-text"></span> elapsed)
-            </div>
-            <div id="current-status"></div>
-        </div>
-    </div>
-
-    <div class="micro-metrics-row">
-        <div class="metric-gauge">
-            <div class="metric-label">Week <span id="week-val">0%</span></div>
-            <div class="metric-bar-bg"><div id="week-fill" class="metric-fill"></div></div>
-        </div>
-        <div class="metric-gauge">
-            <div class="metric-label">Month <span id="month-val">0%</span></div>
-            <div class="metric-bar-bg"><div id="month-fill" class="metric-fill"></div></div>
-        </div>
-        <div class="metric-gauge">
-            <div class="metric-label">Quarter <span id="quarter-val">Q?</span></div>
-            <div class="metric-bar-bg"><div id="quarter-fill" class="metric-fill"></div></div>
+            <div id="yearly-progress">Syncing with system clock...</div>
         </div>
     </div>
 
     <div class="bar-container">
-        <div id="status-display"></div>
-        <div class="ruler-container" id="ruler-container"></div>
-        <div class="progress-bar" id="progress-bar">
-            <div id="progress-fill"></div>
-            <div class="sun-path-track"></div>
-        </div>
+        <div id="status-display">INITIALIZING...</div>
+        <div class="progress-bar"><div id="progress-fill"></div></div>
         <div id="progress-marker"></div>
     </div>
 
-    <details id="pomodoro-dropdown">
-        <summary>OPEN POMODORO & GLOBAL VISTA</summary>
-        <div class="pomodoro-flex">
-            
-            <div class="pomo-log-column">
-                <div class="log-header">
-                    <span>SESSION LOG</span>
-                    <span>TOTAL: <span id="log-total-mins">0</span>m</span>
-                </div>
-                <div id="pomo-log-body" class="log-body"></div>
-            </div>
+    <div class="pomodoro-flex">
+        <div class="pomo-log-column">
+            <div class="log-header"><span>SESSION LOG</span><span>DAILY TOTAL: <span id="log-total-mins">0</span>m</span></div>
+            <div id="pomo-log-body" class="log-body"></div>
+        </div>
 
-            <div class="pomodoro-controls">
-                <h3 style="margin-top:0;">Enter Minute Blocks</h3>
-                <select id="pomo-minutes"></select>
-                <div style="margin-top: 15px;">
-                    <button id="pomo-start" style="background: var(--ticket-ready-color); color: white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">START</button>
-                    <button id="pomo-stop" style="background: #f44336; color: white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">STOP / RESET</button>
-                </div>
-                
-                <div id="pomo-stats-line">
-                    <div class="stat-box">
-                        <span class="stat-label">Timer</span>
-                        <span id="pomo-countdown-display" class="stat-value">0m / 0m</span>
-                    </div>
-                    <div class="stat-box">
-                        <span class="stat-label">Count</span>
-                        <span id="pomo-count-display" class="stat-value">0</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="pomodoro-visuals">
-                <div class="circle-unit">
-                    <svg width="150" height="150" class="timer-svg">
-                        <circle class="circle-bg" cx="75" cy="75" r="70"></circle>
-                        <circle id="pomo-circle-fill" class="circle-fill" cx="75" cy="75" r="70"></circle>
-                    </svg>
-                    <label>Pomodoro Progress</label>
-                </div>
-                <div class="circle-unit">
-                    <svg width="150" height="150" class="timer-svg">
-                        <circle class="circle-bg" cx="75" cy="75" r="70"></circle>
-                        <circle id="global-circle-fill" class="circle-fill" cx="75" cy="75" r="70"></circle>
-                    </svg>
-                    <label>Global Day Decay</label>
-                </div>
+        <div class="controls">
+            <select id="pomo-minutes"></select>
+            <button id="pomo-start">START SESSION</button>
+            <button id="pomo-stop">STOP / YIELD</button>
+            <div style="text-align: center; font-family: monospace; font-size: 1.1em; margin-top: 10px;">
+                <span id="pomo-timer-text">00:00</span> | Count: <span id="pomo-count-text">0</span>
             </div>
         </div>
-    </details>
-    
-    <div id="annual-heatmap-container">
-        <p style="font-weight: bold; margin-bottom: 15px; color: var(--muted-text-color);">Annual Decay Map: <span id="heatmap-year"></span> Progress</p>
-        <div id="annual-heatmap-grid"></div>
+
+        <div class="visuals">
+            <div>
+                <svg width="120" height="120" class="timer-svg">
+                    <circle class="circle-bg" cx="60" cy="60" r="55"></circle>
+                    <circle id="pomo-circle" class="circle-fill" cx="60" cy="60" r="55"></circle>
+                </svg>
+                <div class="label-sub">Pomo Focus</div>
+            </div>
+            <div>
+                <svg width="120" height="120" class="timer-svg">
+                    <circle class="circle-bg" cx="60" cy="60" r="55"></circle>
+                    <circle id="global-circle" class="circle-fill" cx="60" cy="60" r="55" style="fill: #9932CC;"></circle>
+                </svg>
+                <div class="label-sub">Day Decay</div>
+            </div>
+        </div>
     </div>
 
-    <button id="mode-toggle">🌙</button>
-
     <script>
-        const START_HOUR = 6, END_HOUR = 23, TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
-        const BAR_WIDTH = 1200, PIXELS_PER_MINUTE = BAR_WIDTH / TOTAL_MINUTES, LOW_TIME_THRESHOLD = 20;
-        const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const START_HOUR = 6, END_HOUR = 23, TOTAL_MIN = (END_HOUR - START_HOUR) * 60;
         
-        // POMO STATE
-        let pomoInterval = null, pomoTimeLeft = 0, pomoTotalTime = 0, pomoCount = 0, dailyTotalMins = 0;
-        let activeSessionBlockSize = 0; // The 'Mins' per pomo for current session
+        // --- LOCAL STORAGE & STATE ---
+        let dailyTotalMins = parseInt(localStorage.getItem('dailyTotalMins')) || 0;
+        let pomoStartTime = localStorage.getItem('pomoStartTime') ? parseInt(localStorage.getItem('pomoStartTime')) : null;
+        let activeBlock = parseInt(localStorage.getItem('activeBlock')) || 25;
 
-        const dom = {
-            dayOfWeek: document.getElementById('day-of-week'),
-            daysSpent: document.getElementById('days-spent-text'),
-            daysRemaining: document.getElementById('days-remaining-text'),
-            currentYear: document.getElementById('current-year'),
-            yearPercentage: document.getElementById('year-percentage-text'),
-            currentStatus: document.getElementById('current-status'),
-            statusDisplay: document.getElementById('status-display'),
-            progressBar: document.getElementById('progress-bar'),
-            progressFill: document.getElementById('progress-fill'),
-            progressMarker: document.getElementById('progress-marker'),
-            modeToggle: document.getElementById('mode-toggle'),
-            rulerContainer: document.getElementById('ruler-container'),
-            heatmapYear: document.getElementById('heatmap-year'),
-            heatmapGrid: document.getElementById('annual-heatmap-grid'),
-            pomoSelect: document.getElementById('pomo-minutes'),
-            pomoStart: document.getElementById('pomo-start'),
-            pomoStop: document.getElementById('pomo-stop'),
-            pomoStatsLine: document.getElementById('pomo-stats-line'),
-            pomoDisplay: document.getElementById('pomo-countdown-display'),
-            pomoCountDisplay: document.getElementById('pomo-count-display'),
-            pomoCircle: document.getElementById('pomo-circle-fill'),
-            globalCircle: document.getElementById('global-circle-fill'),
-            pomoLog: document.getElementById('pomo-log-body'),
-            pomoLogTotal: document.getElementById('log-total-mins'),
-            hourHand: document.getElementById('hour-hand'),
-            minuteHand: document.getElementById('minute-hand'),
-            weekFill: document.getElementById('week-fill'), weekVal: document.getElementById('week-val'),
-            monthFill: document.getElementById('month-fill'), monthVal: document.getElementById('month-val'),
-            quarterFill: document.getElementById('quarter-fill'), quarterVal: document.getElementById('quarter-val')
-        };
+        document.getElementById('log-total-mins').textContent = dailyTotalMins;
 
+        // Populate Dropdown
+        const select = document.getElementById('pomo-minutes');
         for(let i=1; i<=60; i++) {
-            let opt = document.createElement('option');
-            opt.value = i; opt.innerHTML = `${i} Minutes`;
-            if(i === 25) opt.selected = true;
-            dom.pomoSelect.appendChild(opt);
+            let opt = document.createElement('option'); opt.value = i; opt.innerHTML = `${i} Minutes`;
+            if(i === activeBlock) opt.selected = true;
+            select.appendChild(opt);
         }
 
-        function isLeapYear(year) { return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0); }
-        function getDayOfYear(date) { const start = new Date(date.getFullYear(), 0, 0); return Math.floor((date - start) / 86400000); }
-        function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
-        function hexToRgb(hex) { const b = parseInt(hex.slice(1), 16); return [(b >> 16) & 255, (b >> 8) & 255, b & 255]; }
-        function lerp(s, e, a) { return Math.round(s + (e - s) * a); }
+        function updateMainDisplays() {
+            const now = new Date(); 
+            const cH = now.getHours(), cM = now.getMinutes(), cS = now.getSeconds();
+            
+            // Global Day Decay
+            let mins = (cH < START_HOUR) ? 0 : (cH >= END_HOUR) ? TOTAL_MIN : (cH * 60 + cM) - (START_HOUR * 60);
+            const pElap = (mins / TOTAL_MIN) * 100;
+            
+            document.getElementById('progress-fill').style.transform = `scaleX(${pElap / 100})`;
+            document.getElementById('progress-marker').style.left = `${(pElap / 100) * 1200}px`;
+            document.getElementById('status-display').textContent = `${Math.round(pElap)}% CONSUMED (${TOTAL_MIN - mins}m Left)`;
+            document.getElementById('day-of-week').textContent = now.toLocaleDateString('en-US', {weekday: 'long'});
+            document.getElementById('yearly-progress').textContent = now.toLocaleDateString('en-US', {day:'numeric', month:'long', year:'numeric'});
 
-        function getGradientColor(perc) { 
-            const stops = [ { p: 100, c: hexToRgb('#32CD32') }, { p: 50, c: hexToRgb('#FFD700') }, { p: 20, c: hexToRgb('#FF0000') }, { p: 0, c: hexToRgb('#8B0000') } ];
-            perc = Math.max(0, Math.min(100, perc));
-            let s = stops[0], e = stops[0];
-            for (let i = 0; i < stops.length - 1; i++) { if (perc <= stops[i].p && perc >= stops[i+1].p) { s = stops[i+1]; e = stops[i]; break; } }
-            const ratio = (perc - s.p) / (e.p - s.p || 1);
-            return `rgb(${lerp(s.c[0], e.c[0], ratio)},${lerp(s.c[1], e.c[1], ratio)},${lerp(s.c[2], e.c[2], ratio)})`;
-        }
+            // Casio Hands
+            document.getElementById('hour-hand').style.transform = `rotate(${(cH % 12) * 30 + (cM * 0.5)}deg)`;
+            document.getElementById('minute-hand').style.transform = `rotate(${cM * 6}deg)`;
+            document.getElementById('global-circle').setAttribute('r', ((100-pElap)/100)*55);
 
-        function getPomoColor(perc) {
-            const stops = [ { p: 100, c: [0, 255, 255] }, { p: 50, c: [65, 105, 225] }, { p: 0, c: [25, 25, 112] } ];
-            perc = Math.max(0, Math.min(100, perc));
-            let s = stops[0], e = stops[0];
-            for (let i = 0; i < stops.length - 1; i++) { if (perc <= stops[i].p && perc >= stops[i+1].p) { s = stops[i+1]; e = stops[i]; break; } }
-            const ratio = (perc - s.p) / (e.p - s.p || 1);
-            return `rgb(${lerp(s.c[0], e.c[0], ratio)},${lerp(s.c[1], e.c[1], ratio)},${lerp(s.c[2], e.c[2], ratio)})`;
-        }
+            // Pomodoro Logic (Time-Based to prevent background pause)
+            if (pomoStartTime) {
+                const totalSecsInBlock = activeBlock * 60;
+                const totalElapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
+                const currentCount = Math.floor(totalElapsedSecs / totalSecsInBlock);
+                const secsIntoCurrentCycle = totalElapsedSecs % totalSecsInBlock;
+                const secsRemainingInCycle = totalSecsInBlock - secsIntoCurrentCycle;
 
-        function generateRulerMarks() {
-            dom.rulerContainer.innerHTML = '';
-            for (let i = 0; i <= TOTAL_MINUTES; i += 30) {
-                const isH = i % 60 === 0;
-                const mark = document.createElement('div'); mark.className = `ruler-mark ${isH ? 'mark-hour' : 'mark-30min'}`; mark.style.left = `${i * PIXELS_PER_MINUTE}px`; dom.rulerContainer.appendChild(mark);
-                let tH = (START_HOUR + Math.floor(i/60)) % 24, mins = i % 60;
-                const ampm = tH >= 12 ? 'PM' : 'AM';
-                let dH = tH % 12 || 12;
-                const label = document.createElement('div'); label.className = `mark-label ${isH ? 'label-hour' : 'label-inside'}`; label.style.left = `${i * PIXELS_PER_MINUTE}px`;
-                label.textContent = `${dH}${mins === 0 ? ampm : ':' + mins + ampm}`;
-                dom.rulerContainer.appendChild(label);
+                const displayM = Math.floor(secsRemainingInCycle / 60);
+                const displayS = secsRemainingInCycle % 60;
+
+                document.getElementById('pomo-timer-text').textContent = `${displayM}:${displayS.toString().padStart(2, '0')}`;
+                document.getElementById('pomo-count-text').textContent = currentCount;
+                document.getElementById('pomo-circle').setAttribute('r', (secsRemainingInCycle / totalSecsInBlock) * 55);
             }
         }
 
-        function updateProgress() {
-            const now = new Date(); const cH = now.getHours(), cM = now.getMinutes();
-            let mins = (cH < START_HOUR) ? 0 : (cH > END_HOUR || (cH === END_HOUR && cM > 0)) ? TOTAL_MINUTES : (cH * 60 + cM) - (START_HOUR * 60);
-            const pElap = (mins / TOTAL_MINUTES) * 100, pRem = 100 - pElap;
-            const remColor = getGradientColor(pRem);
-
-            dom.progressBar.style.backgroundColor = remColor;
-            dom.progressFill.style.transform = `scaleX(${pElap / 100})`;
-            dom.progressMarker.style.transform = `translateX(${(pElap / 100) * BAR_WIDTH}px)`;
-            dom.progressMarker.style.backgroundColor = remColor;
+        document.getElementById('pomo-start').onclick = () => {
+            // If already running, finalize it first
+            if(pomoStartTime) finalizeSession();
             
-            if (pRem <= LOW_TIME_THRESHOLD) dom.progressMarker.classList.add('low-time-pulse');
-            else dom.progressMarker.classList.remove('low-time-pulse');
-
-            dom.statusDisplay.textContent = `${Math.round(pElap)}% CONSUMED (${TOTAL_MINUTES - mins} Minutes Remaining)`;
-            let curHourText = (cH >= START_HOUR && cH < END_HOUR) ? ` | Current Hour: ${60 - cM} Minutes Left` : '';
-            dom.currentStatus.textContent = `The current time is ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, used ${pElap.toFixed(1)}% of total window.${curHourText}`;
+            activeBlock = parseInt(select.value);
+            pomoStartTime = Date.now();
             
-            const hDeg = (cH % 12) * 30 + (cM * 0.5);
-            const mDeg = cM * 6;
-            dom.hourHand.style.transform = `rotate(${hDeg}deg)`;
-            dom.minuteHand.style.transform = `rotate(${mDeg}deg)`;
-
-            const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-            dom.dayOfWeek.textContent = days[now.getDay()];
-            const curY = now.getFullYear(), dS = getDayOfYear(now), totalD = isLeapYear(curY) ? 366 : 365;
-            dom.daysSpent.textContent = dS; dom.daysRemaining.textContent = totalD - dS;
-            dom.currentYear.textContent = curY; dom.yearPercentage.textContent = `${((dS / totalD) * 100).toFixed(2)}%`;
+            localStorage.setItem('pomoStartTime', pomoStartTime);
+            localStorage.setItem('activeBlock', activeBlock);
             
-            const weekPerc = (now.getDay() === 0 ? 6 : now.getDay() - 1) / 7 * 100 + (now.getHours()/168*100);
-            dom.weekFill.style.width = weekPerc + '%'; dom.weekVal.textContent = Math.round(weekPerc) + '%';
-            
-            const monthPerc = (now.getDate() / getDaysInMonth(curY, now.getMonth())) * 100;
-            dom.monthFill.style.width = monthPerc + '%'; dom.monthVal.textContent = Math.round(monthPerc) + '%';
-            
-            const quarter = Math.floor(now.getMonth() / 3) + 1;
-            const qStartMonth = (quarter - 1) * 3;
-            const qDaysTotal = getDaysInMonth(curY, qStartMonth) + getDaysInMonth(curY, qStartMonth+1) + getDaysInMonth(curY, qStartMonth+2);
-            const qDaysElapsed = now.getDate() + (now.getMonth() > qStartMonth ? getDaysInMonth(curY, qStartMonth) : 0) + (now.getMonth() > qStartMonth+1 ? getDaysInMonth(curY, qStartMonth+1) : 0);
-            const qPerc = (qDaysElapsed / qDaysTotal) * 100;
-            dom.quarterFill.style.width = qPerc + '%'; dom.quarterVal.textContent = `Q${quarter} (${Math.round(qPerc)}%)`;
-
-            dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
-            dom.globalCircle.style.fill = remColor;
-            generateHeatmap();
-        }
-
-        // --- NEW CALCULATED LOG LOGIC ---
-
-        function finalizeCurrentSession() {
-            if (pomoInterval) {
-                // Calculate actual focused mins: count * block size
-                const focusedMins = pomoCount * activeSessionBlockSize;
-                dailyTotalMins += focusedMins;
-                dom.pomoLogTotal.textContent = dailyTotalMins;
-
-                // Update the visual log entry to show the "Yield"
-                const lastEntry = dom.pomoLog.firstChild;
-                if (lastEntry) {
-                    const tag = document.createElement('span');
-                    tag.className = 'log-tag';
-                    tag.textContent = `YIELD: ${focusedMins}m`;
-                    lastEntry.appendChild(tag);
-                }
-            }
-        }
-
-        function addStartEntry(mins) {
-            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const entry = document.createElement('div');
             entry.className = 'log-entry';
-            entry.innerHTML = `<span>▶ ${timeStr}</span> <span>SET: ${mins}m</span>`;
-            dom.pomoLog.prepend(entry);
-        }
-
-        dom.pomoStart.onclick = () => {
-            // 1. Finalize old session if one was running
-            finalizeCurrentSession();
-            clearInterval(pomoInterval);
-
-            // 2. Set up new session
-            activeSessionBlockSize = parseInt(dom.pomoSelect.value);
-            pomoTotalTime = activeSessionBlockSize * 60; 
-            pomoTimeLeft = pomoTotalTime;
-            pomoCount = 0; // Reset count for the NEW session
-            
-            addStartEntry(activeSessionBlockSize);
-            dom.pomoStatsLine.style.display = 'flex';
-            
-            pomoInterval = setInterval(() => {
-                pomoTimeLeft--; 
-                if(pomoTimeLeft < 0) { 
-                    pomoCount++; 
-                    pomoTimeLeft = pomoTotalTime; 
-                }
-                const p = (pomoTimeLeft / pomoTotalTime) * 100;
-                dom.pomoDisplay.textContent = `${Math.floor((pomoTotalTime - pomoTimeLeft)/60)}m / ${activeSessionBlockSize}m`;
-                dom.pomoCountDisplay.textContent = pomoCount;
-                dom.pomoCircle.setAttribute('r', (pomoTimeLeft / pomoTotalTime) * 70);
-                dom.pomoCircle.style.fill = getPomoColor(p);
-            }, 1000);
+            entry.innerHTML = `<span>▶ ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span> <span>BLOCK: ${activeBlock}m</span>`;
+            document.getElementById('pomo-log-body').prepend(entry);
         };
 
-        dom.pomoStop.onclick = () => { 
-            finalizeCurrentSession();
-            clearInterval(pomoInterval); 
-            pomoInterval = null; 
-            dom.pomoStatsLine.style.display = 'none'; 
-            dom.pomoCircle.setAttribute('r', 70); 
-            dom.pomoCircle.style.fill = 'var(--spent-color)'; 
+        document.getElementById('pomo-stop').onclick = () => {
+            finalizeSession();
         };
-        
-        // --- HEATMAP & UTILS ---
 
-        function generateHeatmap() {
-            const now = new Date(); dom.heatmapYear.textContent = now.getFullYear(); dom.heatmapGrid.innerHTML = '';
-            for (let m = 0; m < 12; m++) {
-                const col = document.createElement('div'); col.className = 'month-column';
-                const grid = document.createElement('div'); grid.className = 'month-grid';
-                for (let d = 1; d <= getDaysInMonth(now.getFullYear(), m); d++) {
-                    const b = document.createElement('div'); b.className = 'day-block';
-                    const isP = (m < now.getMonth() || (m === now.getMonth() && d < now.getDate()));
-                    b.classList.add(isP ? 'decayed' : (m === now.getMonth() && d === now.getDate()) ? 'today-marker' : 'future');
-                    grid.appendChild(b);
-                }
-                col.appendChild(grid);
-                const l = document.createElement('div'); l.style.fontSize = "0.7em"; l.textContent = MONTH_NAMES[m];
-                col.appendChild(l); dom.heatmapGrid.appendChild(col);
+        function finalizeSession() {
+            if (!pomoStartTime) return;
+            
+            const totalElapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
+            const completedBlocks = Math.floor(totalElapsedSecs / (activeBlock * 60));
+            const earnedMins = completedBlocks * activeBlock;
+            
+            dailyTotalMins += earnedMins;
+            localStorage.setItem('dailyTotalMins', dailyTotalMins);
+            document.getElementById('log-total-mins').textContent = dailyTotalMins;
+
+            const lastEntry = document.getElementById('pomo-log-body').firstChild;
+            if(lastEntry) {
+                const tag = document.createElement('span');
+                tag.className = 'log-tag';
+                tag.textContent = `YIELD: ${earnedMins}m`;
+                lastEntry.appendChild(tag);
             }
+
+            pomoStartTime = null;
+            localStorage.removeItem('pomoStartTime');
+            document.getElementById('pomo-timer-text').textContent = "00:00";
+            document.getElementById('pomo-count-text').textContent = "0";
+            document.getElementById('pomo-circle').setAttribute('r', 55);
         }
 
-        dom.modeToggle.onclick = () => { 
-            document.documentElement.classList.toggle('dark-mode'); 
-            dom.modeToggle.innerHTML = document.documentElement.classList.contains('dark-mode') ? '☀️' : '🌙';
-        };
+        // Auto-refresh at 4 AM for system stability
+        setInterval(() => {
+            const h = new Date().getHours(), m = new Date().getMinutes();
+            if(h === 4 && m === 0) window.location.reload();
+        }, 60000);
 
-        document.addEventListener('DOMContentLoaded', () => { generateRulerMarks(); updateProgress(); setInterval(updateProgress, 60000); });
+        setInterval(updateMainDisplays, 1000);
+        updateMainDisplays();
     </script>
 </body>
 </html>
