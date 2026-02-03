@@ -5,6 +5,13 @@
     <title>G-5600UE | Eternal Decay Clock</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
+    <script>
+        /* CRITICAL: Pre-load Dark Mode to prevent white flash */
+        const savedMode = localStorage.getItem('decay_theme');
+        if (savedMode === 'dark' || (!savedMode && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
     <style>
         :root {
             --bg-color: #f4f4f9;
@@ -22,24 +29,6 @@
             --ticket-torn-color: #9932CC;
         }
 
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-color: #222;
-                --text-color: #eee;
-                --muted-text-color: #aaa;
-                --bar-bg-color: #444;
-                --ruler-line-color: #aaa;
-                --inside-label-color: #eee;
-                --decayed-color: #9932CC;
-                --spent-color: #3d3d3d;      
-                --future-color: #66FF66;
-                --cache-bg-color: #333;
-                --heap-bg-color: #1a1a1a;
-                --ticket-ready-color: #66FF66; 
-                --ticket-torn-color: #9932CC;
-            }
-        }
-
         html.dark-mode {
             --bg-color: #222;
             --text-color: #eee;
@@ -52,9 +41,9 @@
             --future-color: #66FF66;
             --cache-bg-color: #333;
             --heap-bg-color: #1a1a1a;
-            --ticket-ready-color: #66FF66; 
-            --ticket-torn-color: #9932CC;
         }
+
+        * { box-sizing: border-box; }
 
         @keyframes marker-pulse {
             0% { box-shadow: 0 0 5px 3px rgba(255, 0, 0, 0.4); }
@@ -77,9 +66,16 @@
             transition: background-color 0.3s, color 0.3s; 
         }
 
-        .header-container { display: flex; align-items: center; justify-content: center; width: 1200px; margin-bottom: 20px; }
-        .casio-clock { margin-right: 30px; filter: drop-shadow(0 0 2px rgba(0,0,0,0.2)); }
-        #hour-hand, #minute-hand { transform-origin: 50px 50px; transition: transform 0.5s cubic-bezier(0.4, 2.1, 0.6, 1); }
+        .header-container, .micro-metrics-row, .bar-container, details, #annual-heatmap-container { 
+            width: 95%; 
+            max-width: 1200px; 
+            margin-left: auto; 
+            margin-right: auto;
+        }
+
+        .header-container { display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+        .casio-clock { margin-right: 30px; filter: drop-shadow(0 0 2px rgba(0,0,0,0.2)); flex-shrink: 0; }
+        #hour-hand, #minute-hand { transform-origin: 50px 50px; transition: transform 0.5s cubic-bezier(0.4, 2.1, 0.6, 1); will-change: transform; }
 
         .summary-block { text-align: left; color: var(--text-color); }
         #day-of-week { font-size: 2.2em; font-weight: 800; margin-bottom: 5px; }
@@ -87,20 +83,20 @@
         #current-status { font-size: 1.0em; color: var(--muted-text-color); font-weight: 500; margin-bottom: 15px;}
         #days-spent-text { color: var(--decayed-color); font-weight: bold; }
 
-        .micro-metrics-row { display: flex; justify-content: center; gap: 30px; margin-bottom: 25px; width: 1200px; }
+        .micro-metrics-row { display: flex; justify-content: center; gap: 30px; margin-bottom: 25px; }
         .metric-gauge { width: 180px; text-align: left; }
         .metric-label { font-size: 0.65em; font-weight: bold; text-transform: uppercase; color: var(--muted-text-color); display: flex; justify-content: space-between; margin-bottom: 4px; }
         .metric-bar-bg { width: 100%; height: 6px; background: var(--bar-bg-color); border-radius: 3px; overflow: hidden; }
-        .metric-fill { height: 100%; background: var(--decayed-color); width: 0%; transition: width 0.5s; }
+        .metric-fill { height: 100%; background: var(--decayed-color); width: 0%; transition: width 0.5s; will-change: width; }
 
-        .bar-container { width: 1200px; position: relative; text-align: center; z-index: 1; }
+        .bar-container { position: relative; text-align: center; z-index: 1; }
         #status-display { font-size: 2.8em; font-weight: bold; margin-bottom: 25px; color: var(--text-color); }
         
         .progress-bar { width: 100%; height: 80px; background-color: var(--bar-bg-color); border-radius: 4px; overflow: hidden; position: relative; }
         .sun-path-track { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(to right, #191970, #FFD700 50%, #4B0082); opacity: 0.6; z-index: 2; }
         
-        #progress-fill { height: 100%; width: 100%; transform-origin: left; background-color: var(--spent-color) !important; }
-        #progress-marker { position: absolute; top: 70px; left: 0; height: 100px; width: 3px; background-color: #FF0000; z-index: 10; transform: translateX(0px); }
+        #progress-fill { height: 100%; width: 100%; transform-origin: left; background-color: var(--spent-color) !important; transform: scaleX(0); transition: transform 0.5s ease-out; will-change: transform; }
+        #progress-marker { position: absolute; top: 70px; left: 0; height: 100px; width: 3px; background-color: #FF0000; z-index: 10; transform: translateX(0px); pointer-events: none; transition: transform 0.5s ease-out; will-change: transform; }
         .low-time-pulse { animation: marker-pulse 1.5s infinite alternate; }
 
         .ruler-container { width: 100%; height: 55px; position: relative; margin-bottom: 5px; }
@@ -111,20 +107,20 @@
         .label-hour { font-size: 0.9em; top: 5px; font-weight: bold; color: var(--text-color); }
         .label-inside { font-size: 0.8em; font-weight: 500; color: var(--inside-label-color); top: 90px; text-shadow: 0 0 3px rgba(0, 0, 0, 0.2); }
 
-        details { width: 1200px; margin-top: 40px; border-top: 1px solid var(--muted-text-color); padding-top: 20px; }
+        details { margin-top: 40px; border-top: 1px solid var(--muted-text-color); padding-top: 20px; }
         summary { cursor: pointer; font-weight: bold; font-size: 1.1em; color: var(--muted-text-color); text-align: center; list-style: none; padding: 10px; }
         
-        .pomodoro-flex { display: flex; justify-content: space-between; align-items: stretch; padding: 30px; background: var(--bar-bg-color); border-radius: 8px; gap: 20px; }
+        .pomodoro-flex { display: flex; justify-content: space-between; align-items: stretch; padding: 30px; background: var(--bar-bg-color); border-radius: 8px; gap: 20px; flex-wrap: wrap; }
         
-        .pomo-log-column { width: 28%; background: var(--bg-color); border: 1px solid var(--muted-text-color); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
+        .pomo-log-column { width: 28%; min-width: 250px; background: var(--bg-color); border: 1px solid var(--muted-text-color); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
         .log-header { font-size: 0.7em; font-weight: bold; padding: 8px; border-bottom: 1px solid var(--muted-text-color); background: var(--cache-bg-color); display: flex; justify-content: space-between; }
         .log-body { flex-grow: 1; overflow-y: auto; max-height: 200px; font-family: monospace; font-size: 0.85em; }
         .log-entry { padding: 4px 8px; border-bottom: 1px solid var(--bar-bg-color); display: flex; justify-content: space-between; align-items: center;}
         .log-entry:nth-child(even) { background: rgba(0,0,0,0.03); }
         .log-tag { font-size: 0.7em; background: var(--spent-color); padding: 2px 4px; border-radius: 3px; color: var(--muted-text-color); }
 
-        .pomodoro-controls { width: 22%; text-align: left; }
-        .pomodoro-visuals { width: 45%; display: flex; justify-content: space-around; align-items: center; }
+        .pomodoro-controls { width: 22%; min-width: 200px; text-align: left; }
+        .pomodoro-visuals { width: 45%; min-width: 300px; display: flex; justify-content: space-around; align-items: center; }
         
         .circle-unit { text-align: center; position: relative; }
         .circle-unit label { display: block; margin-top: 10px; font-size: 0.8em; font-weight: bold; color: var(--muted-text-color); text-transform: uppercase; }
@@ -136,16 +132,17 @@
 
         .timer-svg { transform: rotate(-90deg); }
         .circle-bg { fill: none; stroke: var(--spent-color); stroke-width: 4; }
-        .circle-fill { fill: currentColor; transition: r 0.3s, fill 0.3s; }
+        .circle-fill { fill: currentColor; transition: r 0.3s, fill 0.3s; will-change: r, fill; }
 
-        #annual-heatmap-container { width: 1200px; margin-top: 30px; padding: 20px; border: 1px dashed var(--muted-text-color); text-align: center; }
-        #annual-heatmap-grid { display: flex; justify-content: center; gap: 10px; }
-        .month-column { width: 60px; display: flex; flex-direction: column; align-items: center; }
+        #annual-heatmap-container { margin-top: 30px; padding: 20px; border: 1px dashed var(--muted-text-color); text-align: center; }
+        #annual-heatmap-grid { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .month-column { width: 60px; display: flex; flex-direction: column; align-items: center; margin-bottom: 10px; }
         .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 5px; border: 1px solid var(--muted-text-color); padding: 2px; background-color: var(--bar-bg-color); }
         .day-block { width: 5px; height: 5px; border-radius: 50%; opacity: 0.8; }
         .decayed { background-color: var(--decayed-color); }
         .future { background-color: var(--future-color); }
-        .today-marker { background-color: #FFFF00; border: 1px solid var(--text-color); animation: pulse-today 1.5s infinite alternate; }
+        .today-marker { background-color: #FFFF00; border: 1px solid var(--text-color); }
+        
         #mode-toggle { position: fixed; top: 20px; right: 20px; width: 40px; height: 40px; cursor: pointer; border: 2px solid var(--text-color); background-color: var(--bar-bg-color); color: var(--text-color); border-radius: 50%; z-index: 100; display: flex; justify-content: center; align-items: center; }
     </style>
 </head>
@@ -256,13 +253,14 @@
 
     <script>
         const START_HOUR = 6, END_HOUR = 23, TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
-        const BAR_WIDTH = 1200, PIXELS_PER_MINUTE = BAR_WIDTH / TOTAL_MINUTES, LOW_TIME_THRESHOLD = 20;
+        const LOW_TIME_THRESHOLD = 20;
         const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         
         let dailyTotalMins = parseInt(localStorage.getItem('decay_dailyTotal')) || 0;
         let savedLog = localStorage.getItem('decay_logHTML') || "";
         let pomoStartTime = localStorage.getItem('decay_pomoStart') ? parseInt(localStorage.getItem('decay_pomoStart')) : null;
         let activeSessionBlockSize = parseInt(localStorage.getItem('decay_blockSize')) || 25;
+        let lastMinute = -1; 
 
         const dom = {
             dayOfWeek: document.getElementById('day-of-week'),
@@ -309,11 +307,10 @@
         function isLeapYear(year) { return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0); }
         function getDayOfYear(date) { const start = new Date(date.getFullYear(), 0, 0); return Math.floor((date - start) / 86400000); }
         function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
-        function hexToRgb(hex) { const b = parseInt(hex.slice(1), 16); return [(b >> 16) & 255, (b >> 8) & 255, b & 255]; }
         function lerp(s, e, a) { return Math.round(s + (e - s) * a); }
 
         function getGradientColor(perc) { 
-            const stops = [ { p: 100, c: hexToRgb('#32CD32') }, { p: 50, c: hexToRgb('#FFD700') }, { p: 20, c: hexToRgb('#FF0000') }, { p: 0, c: hexToRgb('#8B0000') } ];
+            const stops = [ { p: 100, c: [50, 205, 50] }, { p: 50, c: [255, 215, 0] }, { p: 20, c: [255, 0, 0] }, { p: 0, c: [139, 0, 0] } ];
             perc = Math.max(0, Math.min(100, perc));
             let s = stops[0], e = stops[0];
             for (let i = 0; i < stops.length - 1; i++) { if (perc <= stops[i].p && perc >= stops[i+1].p) { s = stops[i+1]; e = stops[i]; break; } }
@@ -332,25 +329,33 @@
 
         function generateRulerMarks() {
             dom.rulerContainer.innerHTML = '';
+            const containerWidth = dom.rulerContainer.clientWidth;
+            const pixelsPerMin = containerWidth / TOTAL_MINUTES;
+            const fragment = document.createDocumentFragment();
             for (let i = 0; i <= TOTAL_MINUTES; i += 30) {
                 const isH = i % 60 === 0;
-                const mark = document.createElement('div'); mark.className = `ruler-mark ${isH ? 'mark-hour' : 'mark-30min'}`; mark.style.left = `${i * PIXELS_PER_MINUTE}px`; dom.rulerContainer.appendChild(mark);
+                const mark = document.createElement('div'); mark.className = `ruler-mark ${isH ? 'mark-hour' : 'mark-30min'}`; mark.style.left = `${i * pixelsPerMin}px`; fragment.appendChild(mark);
                 let tH = (START_HOUR + Math.floor(i/60)) % 24, mins = i % 60;
                 const ampm = tH >= 12 ? 'PM' : 'AM';
                 let dH = tH % 12 || 12;
-                const label = document.createElement('div'); label.className = `mark-label ${isH ? 'label-hour' : 'label-inside'}`; label.style.left = `${i * PIXELS_PER_MINUTE}px`;
+                const label = document.createElement('div'); label.className = `mark-label ${isH ? 'label-hour' : 'label-inside'}`; label.style.left = `${i * pixelsPerMin}px`;
                 label.textContent = `${dH}${mins === 0 ? ampm : ':' + mins + ampm}`;
-                dom.rulerContainer.appendChild(label);
+                fragment.appendChild(label);
             }
+            dom.rulerContainer.appendChild(fragment);
         }
 
-        function updateLongTermMetrics() {
-            const now = new Date();
+        function updateHeavyUI(now) {
             const curY = now.getFullYear(), dS = getDayOfYear(now), totalD = isLeapYear(curY) ? 366 : 365;
-            
+            const cH = now.getHours(), cM = now.getMinutes();
+
             dom.daysSpent.textContent = dS; dom.daysRemaining.textContent = totalD - dS;
             dom.currentYear.textContent = curY; dom.yearPercentage.textContent = `${((dS / totalD) * 100).toFixed(2)}%`;
             
+            dom.hourHand.style.transform = `rotate(${(cH % 12) * 30 + (cM * 0.5)}deg)`;
+            dom.minuteHand.style.transform = `rotate(${cM * 6}deg)`;
+            dom.dayOfWeek.textContent = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()];
+
             const weekPerc = (now.getDay() === 0 ? 6 : now.getDay() - 1) / 7 * 100 + (now.getHours()/168*100);
             dom.weekFill.style.width = weekPerc + '%'; dom.weekVal.textContent = Math.round(weekPerc) + '%';
             
@@ -363,17 +368,17 @@
             const qDaysElapsed = now.getDate() + (now.getMonth() > qStartMonth ? getDaysInMonth(curY, qStartMonth) : 0) + (now.getMonth() > qStartMonth+1 ? getDaysInMonth(curY, qStartMonth+1) : 0);
             const qPerc = (qDaysElapsed / qDaysTotal) * 100;
             dom.quarterFill.style.width = qPerc + '%'; dom.quarterVal.textContent = `Q${quarter} (${Math.round(qPerc)}%)`;
-
-            generateHeatmap();
-            console.log("System: Long-Term Vista Rendered.");
         }
 
         function generateHeatmap() {
-            const now = new Date(); dom.heatmapYear.textContent = now.getFullYear(); dom.heatmapGrid.innerHTML = '';
+            const now = new Date();
+            dom.heatmapYear.textContent = now.getFullYear();
+            dom.heatmapGrid.innerHTML = '';
             for (let m = 0; m < 12; m++) {
                 const col = document.createElement('div'); col.className = 'month-column';
                 const grid = document.createElement('div'); grid.className = 'month-grid';
-                for (let d = 1; d <= getDaysInMonth(now.getFullYear(), m); d++) {
+                const days = getDaysInMonth(now.getFullYear(), m);
+                for (let d = 1; d <= days; d++) {
                     const b = document.createElement('div'); b.className = 'day-block';
                     const isP = (m < now.getMonth() || (m === now.getMonth() && d < now.getDate()));
                     b.classList.add(isP ? 'decayed' : (m === now.getMonth() && d === now.getDate()) ? 'today-marker' : 'future');
@@ -385,34 +390,22 @@
             }
         }
 
-        function checkDailyReset() {
-            const now = new Date();
-            const today = now.toDateString();
-            const lastResetDate = localStorage.getItem('decay_lastResetDate');
-
-            // Daily cleanup / Date change detection
-            if ((now.getHours() === 23 && now.getMinutes() === 0 && now.getSeconds() === 0) || (lastResetDate && lastResetDate !== today)) {
-                localStorage.removeItem('decay_dailyTotal');
-                localStorage.removeItem('decay_logHTML');
-                localStorage.setItem('decay_lastResetDate', today);
-                dailyTotalMins = 0;
-                dom.pomoLog.innerHTML = "";
-                dom.pomoLogTotal.textContent = "0";
-                
-                // One final draw for the new day
-                updateLongTermMetrics();
+        function tick() {
+            const now = new Date(); 
+            const cH = now.getHours(), cM = now.getMinutes();
+            
+            if (cM !== lastMinute) {
+                updateHeavyUI(now);
+                lastMinute = cM;
             }
-        }
-
-        function updateProgress() {
-            const now = new Date(); const cH = now.getHours(), cM = now.getMinutes();
+            
             let mins = (cH < START_HOUR) ? 0 : (cH > END_HOUR || (cH === END_HOUR && cM > 0)) ? TOTAL_MINUTES : (cH * 60 + cM) - (START_HOUR * 60);
             const pElap = (mins / TOTAL_MINUTES) * 100, pRem = 100 - pElap;
             const remColor = getGradientColor(pRem);
 
             dom.progressBar.style.backgroundColor = remColor;
             dom.progressFill.style.transform = `scaleX(${pElap / 100})`;
-            dom.progressMarker.style.transform = `translateX(${(pElap / 100) * BAR_WIDTH}px)`;
+            dom.progressMarker.style.transform = `translateX(${(pElap / 100) * dom.progressBar.clientWidth}px)`;
             dom.progressMarker.style.backgroundColor = remColor;
             
             if (pRem <= LOW_TIME_THRESHOLD) dom.progressMarker.classList.add('low-time-pulse');
@@ -420,26 +413,22 @@
 
             dom.statusDisplay.textContent = `${Math.round(pElap)}% CONSUMED (${TOTAL_MINUTES - mins} Minutes Remaining)`;
             let curHourText = (cH >= START_HOUR && cH < END_HOUR) ? ` | Current Hour: ${60 - cM} Minutes Left` : '';
-            dom.currentStatus.textContent = `The current time is ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, used ${pElap.toFixed(1)}% of total window.${curHourText}`;
+            dom.currentStatus.textContent = `Used ${pElap.toFixed(1)}% of total window.${curHourText}`;
             
-            dom.hourHand.style.transform = `rotate(${(cH % 12) * 30 + (cM * 0.5)}deg)`;
-            dom.minuteHand.style.transform = `rotate(${cM * 6}deg)`;
-            dom.dayOfWeek.textContent = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()];
-
             dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
             dom.globalCircle.style.fill = remColor;
 
             if(pomoStartTime) {
-                dom.pomoStatsLine.style.display = 'flex';
+                if (dom.pomoStatsLine.style.display !== 'flex') dom.pomoStatsLine.style.display = 'flex';
                 const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
                 const blockSecs = activeSessionBlockSize * 60;
                 const currentPomoCount = Math.floor(elapsedSecs / blockSecs);
                 const remInBlock = blockSecs - (elapsedSecs % blockSecs);
-                const p = (remInBlock / blockSecs) * 100;
+                
                 dom.pomoDisplay.textContent = `${Math.floor((blockSecs - remInBlock)/60)}m / ${activeSessionBlockSize}m`;
                 dom.pomoCountDisplay.textContent = currentPomoCount;
                 dom.pomoCircle.setAttribute('r', (remInBlock / blockSecs) * 70);
-                dom.pomoCircle.style.fill = getPomoColor(p);
+                dom.pomoCircle.style.fill = getPomoColor((remInBlock / blockSecs) * 100);
             }
         }
 
@@ -476,21 +465,25 @@
         };
 
         dom.modeToggle.onclick = () => { 
-            document.documentElement.classList.toggle('dark-mode'); 
-            dom.modeToggle.innerHTML = document.documentElement.classList.contains('dark-mode') ? '☀️' : '🌙';
+            const isDark = document.documentElement.classList.toggle('dark-mode'); 
+            localStorage.setItem('decay_theme', isDark ? 'dark' : 'light');
+            dom.modeToggle.innerHTML = isDark ? '☀️' : '🌙';
         };
 
         document.addEventListener('DOMContentLoaded', () => { 
-            generateRulerMarks(); 
-            // Initialization: Run once when page is opened
-            updateLongTermMetrics(); 
-            updateProgress(); 
-            // Loop: High-frequency updates only
-            setInterval(() => {
-                updateProgress();
-                checkDailyReset();
-            }, 1000); 
+            generateRulerMarks();
+            generateHeatmap();
+            tick();
+            setInterval(tick, 1000); 
+            const isDark = document.documentElement.classList.contains('dark-mode');
+            dom.modeToggle.innerHTML = isDark ? '☀️' : '🌙';
         });
+        
+        let resizeTimer;
+        window.onresize = () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(generateRulerMarks, 150);
+        };
     </script>
 </body>
 </html>
