@@ -412,8 +412,13 @@
             else dom.progressMarker.classList.remove('low-time-pulse');
 
             dom.statusDisplay.textContent = `${Math.round(pElap)}% CONSUMED (${TOTAL_MINUTES - mins} Minutes Remaining)`;
+            
+            // Time string logic for 'The current time is y:y'
+            const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
             let curHourText = (cH >= START_HOUR && cH < END_HOUR) ? ` | Current Hour: ${60 - cM} Minutes Left` : '';
-            dom.currentStatus.textContent = `Used ${pElap.toFixed(1)}% of total window.${curHourText}`;
+            
+            // Updated line as requested:
+            dom.currentStatus.textContent = `The current time is ${timeStr}. Used ${pElap.toFixed(1)}% of total window.${curHourText}`;
             
             dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
             dom.globalCircle.style.fill = remColor;
