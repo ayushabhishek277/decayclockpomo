@@ -22,6 +22,24 @@
             --ticket-torn-color: #9932CC;
         }
 
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #222;
+                --text-color: #eee;
+                --muted-text-color: #aaa;
+                --bar-bg-color: #444;
+                --ruler-line-color: #aaa;
+                --inside-label-color: #eee;
+                --decayed-color: #9932CC;
+                --spent-color: #3d3d3d;      
+                --future-color: #66FF66;
+                --cache-bg-color: #333;
+                --heap-bg-color: #1a1a1a;
+                --ticket-ready-color: #66FF66; 
+                --ticket-torn-color: #9932CC;
+            }
+        }
+
         html.dark-mode {
             --bg-color: #222;
             --text-color: #eee;
@@ -131,7 +149,8 @@
         #mode-toggle { position: fixed; top: 20px; right: 20px; width: 40px; height: 40px; cursor: pointer; border: 2px solid var(--text-color); background-color: var(--bar-bg-color); color: var(--text-color); border-radius: 50%; z-index: 100; display: flex; justify-content: center; align-items: center; }
     </style>
 </head>
-<body class="dark-mode"> <div class="header-container">
+<body> 
+    <div class="header-container">
         <div class="casio-clock">
             <svg width="100" height="100" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="48" fill="none" stroke="var(--muted-text-color)" stroke-width="2" />
@@ -178,10 +197,9 @@
         <div id="progress-marker"></div>
     </div>
 
-    <details id="pomodoro-dropdown" open>
+    <details id="pomodoro-dropdown">
         <summary>OPEN POMODORO & GLOBAL VISTA</summary>
         <div class="pomodoro-flex">
-            
             <div class="pomo-log-column">
                 <div class="log-header">
                     <span>SESSION LOG</span>
@@ -241,7 +259,6 @@
         const BAR_WIDTH = 1200, PIXELS_PER_MINUTE = BAR_WIDTH / TOTAL_MINUTES, LOW_TIME_THRESHOLD = 20;
         const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         
-        // --- PERSISTENCE LOAD ---
         let dailyTotalMins = parseInt(localStorage.getItem('decay_dailyTotal')) || 0;
         let savedLog = localStorage.getItem('decay_logHTML') || "";
         let pomoStartTime = localStorage.getItem('decay_pomoStart') ? parseInt(localStorage.getItem('decay_pomoStart')) : null;
@@ -279,7 +296,6 @@
             quarterFill: document.getElementById('quarter-fill'), quarterVal: document.getElementById('quarter-val')
         };
 
-        // Init Log and Total
         dom.pomoLog.innerHTML = savedLog;
         dom.pomoLogTotal.textContent = dailyTotalMins;
 
@@ -328,6 +344,24 @@
             }
         }
 
+        // --- THE RESET LOGIC ---
+        function checkDailyReset() {
+            const now = new Date();
+            const today = now.toDateString();
+            const lastResetDate = localStorage.getItem('decay_lastResetDate');
+
+            // Reset at exactly 11 PM or if we detect a date change
+            if ((now.getHours() === 23 && now.getMinutes() === 0 && now.getSeconds() === 0) || (lastResetDate !== today)) {
+                localStorage.removeItem('decay_dailyTotal');
+                localStorage.removeItem('decay_logHTML');
+                localStorage.setItem('decay_lastResetDate', today);
+                
+                dailyTotalMins = 0;
+                dom.pomoLog.innerHTML = "";
+                dom.pomoLogTotal.textContent = "0";
+            }
+        }
+
         function updateProgress() {
             const now = new Date(); const cH = now.getHours(), cM = now.getMinutes();
             let mins = (cH < START_HOUR) ? 0 : (cH > END_HOUR || (cH === END_HOUR && cM > 0)) ? TOTAL_MINUTES : (cH * 60 + cM) - (START_HOUR * 60);
@@ -353,6 +387,27 @@
 
             const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
             dom.dayOfWeek.textContent = days[now.getDay()];
+
+            dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
+            dom.globalCircle.style.fill = remColor;
+
+            if(pomoStartTime) {
+                dom.pomoStatsLine.style.display = 'flex';
+                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
+                const blockSecs = activeSessionBlockSize * 60;
+                const currentPomoCount = Math.floor(elapsedSecs / blockSecs);
+                const remInBlock = blockSecs - (elapsedSecs % blockSecs);
+                const p = (remInBlock / blockSecs) * 100;
+                dom.pomoDisplay.textContent = `${Math.floor((blockSecs - remInBlock)/60)}m / ${activeSessionBlockSize}m`;
+                dom.pomoCountDisplay.textContent = currentPomoCount;
+                dom.pomoCircle.setAttribute('r', (remInBlock / blockSecs) * 70);
+                dom.pomoCircle.style.fill = getPomoColor(p);
+            }
+        }
+
+        // --- EFFICIENCY GEAR: Run these only occasionally ---
+        function updateLongTermMetrics() {
+            const now = new Date();
             const curY = now.getFullYear(), dS = getDayOfYear(now), totalD = isLeapYear(curY) ? 366 : 365;
             dom.daysSpent.textContent = dS; dom.daysRemaining.textContent = totalD - dS;
             dom.currentYear.textContent = curY; dom.yearPercentage.textContent = `${((dS / totalD) * 100).toFixed(2)}%`;
@@ -370,24 +425,6 @@
             const qPerc = (qDaysElapsed / qDaysTotal) * 100;
             dom.quarterFill.style.width = qPerc + '%'; dom.quarterVal.textContent = `Q${quarter} (${Math.round(qPerc)}%)`;
 
-            dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
-            dom.globalCircle.style.fill = remColor;
-
-            // --- REAL TIME POMO CALCULATION ---
-            if(pomoStartTime) {
-                dom.pomoStatsLine.style.display = 'flex';
-                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
-                const blockSecs = activeSessionBlockSize * 60;
-                const currentPomoCount = Math.floor(elapsedSecs / blockSecs);
-                const remInBlock = blockSecs - (elapsedSecs % blockSecs);
-                
-                const p = (remInBlock / blockSecs) * 100;
-                dom.pomoDisplay.textContent = `${Math.floor((blockSecs - remInBlock)/60)}m / ${activeSessionBlockSize}m`;
-                dom.pomoCountDisplay.textContent = currentPomoCount;
-                dom.pomoCircle.setAttribute('r', (remInBlock / blockSecs) * 70);
-                dom.pomoCircle.style.fill = getPomoColor(p);
-            }
-
             generateHeatmap();
         }
 
@@ -395,7 +432,6 @@
             if (pomoStartTime) {
                 const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
                 const earned = Math.floor(elapsedSecs / (activeSessionBlockSize * 60)) * activeSessionBlockSize;
-                
                 dailyTotalMins += earned;
                 localStorage.setItem('decay_dailyTotal', dailyTotalMins);
                 dom.pomoLogTotal.textContent = dailyTotalMins;
@@ -415,17 +451,14 @@
             finalizeCurrentSession();
             activeSessionBlockSize = parseInt(dom.pomoSelect.value);
             pomoStartTime = Date.now();
-            
             localStorage.setItem('decay_pomoStart', pomoStartTime);
             localStorage.setItem('decay_blockSize', activeSessionBlockSize);
-
             const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const entry = document.createElement('div');
             entry.className = 'log-entry';
             entry.innerHTML = `<span>▶ ${timeStr}</span> <span>SET: ${activeSessionBlockSize}m</span>`;
             dom.pomoLog.prepend(entry);
             localStorage.setItem('decay_logHTML', dom.pomoLog.innerHTML);
-            
             updateProgress();
         };
 
@@ -463,7 +496,16 @@
         document.addEventListener('DOMContentLoaded', () => { 
             generateRulerMarks(); 
             updateProgress(); 
-            setInterval(updateProgress, 1000); // Updated to 1s for the countdown
+            updateLongTermMetrics();
+            
+            // High frequency (UI update and reset check)
+            setInterval(() => {
+                updateProgress();
+                checkDailyReset();
+            }, 1000); 
+
+            // Low frequency (Heatmap and Yearly stats once an hour)
+            setInterval(updateLongTermMetrics, 3600000);
         });
     </script>
 </body>
