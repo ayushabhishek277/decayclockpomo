@@ -263,7 +263,6 @@
         let savedLog = localStorage.getItem('decay_logHTML') || "";
         let pomoStartTime = localStorage.getItem('decay_pomoStart') ? parseInt(localStorage.getItem('decay_pomoStart')) : null;
         let activeSessionBlockSize = parseInt(localStorage.getItem('decay_blockSize')) || 25;
-        let lastDrawnDate = null; // The lock for 24-hour updates
 
         const dom = {
             dayOfWeek: document.getElementById('day-of-week'),
@@ -345,79 +344,7 @@
             }
         }
 
-        function checkDailyReset() {
-            const now = new Date();
-            const today = now.toDateString();
-            const lastResetDate = localStorage.getItem('decay_lastResetDate');
-
-            // Reset condition: Either it's 11 PM exactly OR we detect the date has changed since last visit
-            if ((now.getHours() === 23 && now.getMinutes() === 0 && now.getSeconds() === 0) || (lastResetDate && lastResetDate !== today)) {
-                localStorage.removeItem('decay_dailyTotal');
-                localStorage.removeItem('decay_logHTML');
-                localStorage.setItem('decay_lastResetDate', today);
-                
-                dailyTotalMins = 0;
-                dom.pomoLog.innerHTML = "";
-                dom.pomoLogTotal.textContent = "0";
-                
-                // Trigger an update of long term metrics on reset
-                updateLongTermMetrics(true);
-            }
-        }
-
-        function updateProgress() {
-            const now = new Date(); const cH = now.getHours(), cM = now.getMinutes(), cS = now.getSeconds();
-            const todayKey = now.toDateString();
-
-            // High-frequency UI updates
-            let mins = (cH < START_HOUR) ? 0 : (cH > END_HOUR || (cH === END_HOUR && cM > 0)) ? TOTAL_MINUTES : (cH * 60 + cM) - (START_HOUR * 60);
-            const pElap = (mins / TOTAL_MINUTES) * 100, pRem = 100 - pElap;
-            const remColor = getGradientColor(pRem);
-
-            dom.progressBar.style.backgroundColor = remColor;
-            dom.progressFill.style.transform = `scaleX(${pElap / 100})`;
-            dom.progressMarker.style.transform = `translateX(${(pElap / 100) * BAR_WIDTH}px)`;
-            dom.progressMarker.style.backgroundColor = remColor;
-            
-            if (pRem <= LOW_TIME_THRESHOLD) dom.progressMarker.classList.add('low-time-pulse');
-            else dom.progressMarker.classList.remove('low-time-pulse');
-
-            dom.statusDisplay.textContent = `${Math.round(pElap)}% CONSUMED (${TOTAL_MINUTES - mins} Minutes Remaining)`;
-            let curHourText = (cH >= START_HOUR && cH < END_HOUR) ? ` | Current Hour: ${60 - cM} Minutes Left` : '';
-            dom.currentStatus.textContent = `The current time is ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, used ${pElap.toFixed(1)}% of total window.${curHourText}`;
-            
-            dom.hourHand.style.transform = `rotate(${(cH % 12) * 30 + (cM * 0.5)}deg)`;
-            dom.minuteHand.style.transform = `rotate(${cM * 6}deg)`;
-
-            const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-            dom.dayOfWeek.textContent = days[now.getDay()];
-
-            dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
-            dom.globalCircle.style.fill = remColor;
-
-            // Update Pomodoro Visuals if active
-            if(pomoStartTime) {
-                dom.pomoStatsLine.style.display = 'flex';
-                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
-                const blockSecs = activeSessionBlockSize * 60;
-                const currentPomoCount = Math.floor(elapsedSecs / blockSecs);
-                const remInBlock = blockSecs - (elapsedSecs % blockSecs);
-                const p = (remInBlock / blockSecs) * 100;
-                dom.pomoDisplay.textContent = `${Math.floor((blockSecs - remInBlock)/60)}m / ${activeSessionBlockSize}m`;
-                dom.pomoCountDisplay.textContent = currentPomoCount;
-                dom.pomoCircle.setAttribute('r', (remInBlock / blockSecs) * 70);
-                dom.pomoCircle.style.fill = getPomoColor(p);
-            }
-
-            // 24-HOUR LOCK: Check if we need to update heatmap/yearly stats
-            if (todayKey !== lastDrawnDate) {
-                updateLongTermMetrics();
-                lastDrawnDate = todayKey;
-                console.log("System: 24-Hour Cycle Updated");
-            }
-        }
-
-        function updateLongTermMetrics(force = false) {
+        function updateLongTermMetrics() {
             const now = new Date();
             const curY = now.getFullYear(), dS = getDayOfYear(now), totalD = isLeapYear(curY) ? 366 : 365;
             
@@ -438,50 +365,8 @@
             dom.quarterFill.style.width = qPerc + '%'; dom.quarterVal.textContent = `Q${quarter} (${Math.round(qPerc)}%)`;
 
             generateHeatmap();
+            console.log("System: Long-Term Vista Rendered.");
         }
-
-        function finalizeCurrentSession() {
-            if (pomoStartTime) {
-                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
-                const earned = Math.floor(elapsedSecs / (activeSessionBlockSize * 60)) * activeSessionBlockSize;
-                dailyTotalMins += earned;
-                localStorage.setItem('decay_dailyTotal', dailyTotalMins);
-                dom.pomoLogTotal.textContent = dailyTotalMins;
-
-                const lastEntry = dom.pomoLog.firstChild;
-                if (lastEntry && !lastEntry.querySelector('.log-tag')) {
-                    const tag = document.createElement('span');
-                    tag.className = 'log-tag';
-                    tag.textContent = `YIELD: ${earned}m`;
-                    lastEntry.appendChild(tag);
-                    localStorage.setItem('decay_logHTML', dom.pomoLog.innerHTML);
-                }
-            }
-        }
-
-        dom.pomoStart.onclick = () => {
-            finalizeCurrentSession();
-            activeSessionBlockSize = parseInt(dom.pomoSelect.value);
-            pomoStartTime = Date.now();
-            localStorage.setItem('decay_pomoStart', pomoStartTime);
-            localStorage.setItem('decay_blockSize', activeSessionBlockSize);
-            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = `<span>▶ ${timeStr}</span> <span>SET: ${activeSessionBlockSize}m</span>`;
-            dom.pomoLog.prepend(entry);
-            localStorage.setItem('decay_logHTML', dom.pomoLog.innerHTML);
-            updateProgress();
-        };
-
-        dom.pomoStop.onclick = () => { 
-            finalizeCurrentSession();
-            pomoStartTime = null; 
-            localStorage.removeItem('decay_pomoStart');
-            dom.pomoStatsLine.style.display = 'none'; 
-            dom.pomoCircle.setAttribute('r', 70); 
-            dom.pomoCircle.style.fill = 'var(--spent-color)'; 
-        };
 
         function generateHeatmap() {
             const now = new Date(); dom.heatmapYear.textContent = now.getFullYear(); dom.heatmapGrid.innerHTML = '';
@@ -500,6 +385,96 @@
             }
         }
 
+        function checkDailyReset() {
+            const now = new Date();
+            const today = now.toDateString();
+            const lastResetDate = localStorage.getItem('decay_lastResetDate');
+
+            // Daily cleanup / Date change detection
+            if ((now.getHours() === 23 && now.getMinutes() === 0 && now.getSeconds() === 0) || (lastResetDate && lastResetDate !== today)) {
+                localStorage.removeItem('decay_dailyTotal');
+                localStorage.removeItem('decay_logHTML');
+                localStorage.setItem('decay_lastResetDate', today);
+                dailyTotalMins = 0;
+                dom.pomoLog.innerHTML = "";
+                dom.pomoLogTotal.textContent = "0";
+                
+                // One final draw for the new day
+                updateLongTermMetrics();
+            }
+        }
+
+        function updateProgress() {
+            const now = new Date(); const cH = now.getHours(), cM = now.getMinutes();
+            let mins = (cH < START_HOUR) ? 0 : (cH > END_HOUR || (cH === END_HOUR && cM > 0)) ? TOTAL_MINUTES : (cH * 60 + cM) - (START_HOUR * 60);
+            const pElap = (mins / TOTAL_MINUTES) * 100, pRem = 100 - pElap;
+            const remColor = getGradientColor(pRem);
+
+            dom.progressBar.style.backgroundColor = remColor;
+            dom.progressFill.style.transform = `scaleX(${pElap / 100})`;
+            dom.progressMarker.style.transform = `translateX(${(pElap / 100) * BAR_WIDTH}px)`;
+            dom.progressMarker.style.backgroundColor = remColor;
+            
+            if (pRem <= LOW_TIME_THRESHOLD) dom.progressMarker.classList.add('low-time-pulse');
+            else dom.progressMarker.classList.remove('low-time-pulse');
+
+            dom.statusDisplay.textContent = `${Math.round(pElap)}% CONSUMED (${TOTAL_MINUTES - mins} Minutes Remaining)`;
+            let curHourText = (cH >= START_HOUR && cH < END_HOUR) ? ` | Current Hour: ${60 - cM} Minutes Left` : '';
+            dom.currentStatus.textContent = `The current time is ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, used ${pElap.toFixed(1)}% of total window.${curHourText}`;
+            
+            dom.hourHand.style.transform = `rotate(${(cH % 12) * 30 + (cM * 0.5)}deg)`;
+            dom.minuteHand.style.transform = `rotate(${cM * 6}deg)`;
+            dom.dayOfWeek.textContent = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()];
+
+            dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
+            dom.globalCircle.style.fill = remColor;
+
+            if(pomoStartTime) {
+                dom.pomoStatsLine.style.display = 'flex';
+                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
+                const blockSecs = activeSessionBlockSize * 60;
+                const currentPomoCount = Math.floor(elapsedSecs / blockSecs);
+                const remInBlock = blockSecs - (elapsedSecs % blockSecs);
+                const p = (remInBlock / blockSecs) * 100;
+                dom.pomoDisplay.textContent = `${Math.floor((blockSecs - remInBlock)/60)}m / ${activeSessionBlockSize}m`;
+                dom.pomoCountDisplay.textContent = currentPomoCount;
+                dom.pomoCircle.setAttribute('r', (remInBlock / blockSecs) * 70);
+                dom.pomoCircle.style.fill = getPomoColor(p);
+            }
+        }
+
+        function finalizeCurrentSession() {
+            if (pomoStartTime) {
+                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
+                const earned = Math.floor(elapsedSecs / (activeSessionBlockSize * 60)) * activeSessionBlockSize;
+                dailyTotalMins += earned;
+                localStorage.setItem('decay_dailyTotal', dailyTotalMins);
+                dom.pomoLogTotal.textContent = dailyTotalMins;
+                const lastEntry = dom.pomoLog.firstChild;
+                if (lastEntry && !lastEntry.querySelector('.log-tag')) {
+                    const tag = document.createElement('span'); tag.className = 'log-tag'; tag.textContent = `YIELD: ${earned}m`;
+                    lastEntry.appendChild(tag); localStorage.setItem('decay_logHTML', dom.pomoLog.innerHTML);
+                }
+            }
+        }
+
+        dom.pomoStart.onclick = () => {
+            finalizeCurrentSession();
+            activeSessionBlockSize = parseInt(dom.pomoSelect.value);
+            pomoStartTime = Date.now();
+            localStorage.setItem('decay_pomoStart', pomoStartTime);
+            localStorage.setItem('decay_blockSize', activeSessionBlockSize);
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const entry = document.createElement('div'); entry.className = 'log-entry';
+            entry.innerHTML = `<span>▶ ${timeStr}</span> <span>SET: ${activeSessionBlockSize}m</span>`;
+            dom.pomoLog.prepend(entry); localStorage.setItem('decay_logHTML', dom.pomoLog.innerHTML);
+        };
+
+        dom.pomoStop.onclick = () => { 
+            finalizeCurrentSession(); pomoStartTime = null; localStorage.removeItem('decay_pomoStart');
+            dom.pomoStatsLine.style.display = 'none'; dom.pomoCircle.setAttribute('r', 70); dom.pomoCircle.style.fill = 'var(--spent-color)'; 
+        };
+
         dom.modeToggle.onclick = () => { 
             document.documentElement.classList.toggle('dark-mode'); 
             dom.modeToggle.innerHTML = document.documentElement.classList.contains('dark-mode') ? '☀️' : '🌙';
@@ -507,10 +482,14 @@
 
         document.addEventListener('DOMContentLoaded', () => { 
             generateRulerMarks(); 
-            // Initialization: updateProgress will see lastDrawnDate is null and run heatmap once.
+            // Initialization: Run once when page is opened
+            updateLongTermMetrics(); 
             updateProgress(); 
-            setInterval(updateProgress, 1000); 
-            setInterval(checkDailyReset, 1000);
+            // Loop: High-frequency updates only
+            setInterval(() => {
+                updateProgress();
+                checkDailyReset();
+            }, 1000); 
         });
     </script>
 </body>
