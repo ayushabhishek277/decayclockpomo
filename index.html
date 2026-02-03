@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Active Fuse Box Timer</title>
+    <title>G-5600UE | Eternal Decay Clock</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <style>
@@ -131,9 +131,7 @@
         #mode-toggle { position: fixed; top: 20px; right: 20px; width: 40px; height: 40px; cursor: pointer; border: 2px solid var(--text-color); background-color: var(--bar-bg-color); color: var(--text-color); border-radius: 50%; z-index: 100; display: flex; justify-content: center; align-items: center; }
     </style>
 </head>
-<body>
-    
-    <div class="header-container">
+<body class="dark-mode"> <div class="header-container">
         <div class="casio-clock">
             <svg width="100" height="100" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="48" fill="none" stroke="var(--muted-text-color)" stroke-width="2" />
@@ -180,7 +178,7 @@
         <div id="progress-marker"></div>
     </div>
 
-    <details id="pomodoro-dropdown">
+    <details id="pomodoro-dropdown" open>
         <summary>OPEN POMODORO & GLOBAL VISTA</summary>
         <div class="pomodoro-flex">
             
@@ -197,7 +195,7 @@
                 <select id="pomo-minutes"></select>
                 <div style="margin-top: 15px;">
                     <button id="pomo-start" style="background: var(--ticket-ready-color); color: white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">START</button>
-                    <button id="pomo-stop" style="background: #f44336; color: white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">STOP / RESET</button>
+                    <button id="pomo-stop" style="background: #f44336; color: white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">STOP / YIELD</button>
                 </div>
                 
                 <div id="pomo-stats-line">
@@ -236,16 +234,18 @@
         <div id="annual-heatmap-grid"></div>
     </div>
 
-    <button id="mode-toggle">🌙</button>
+    <button id="mode-toggle">☀️</button>
 
     <script>
         const START_HOUR = 6, END_HOUR = 23, TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
         const BAR_WIDTH = 1200, PIXELS_PER_MINUTE = BAR_WIDTH / TOTAL_MINUTES, LOW_TIME_THRESHOLD = 20;
         const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         
-        // POMO STATE
-        let pomoInterval = null, pomoTimeLeft = 0, pomoTotalTime = 0, pomoCount = 0, dailyTotalMins = 0;
-        let activeSessionBlockSize = 0; // The 'Mins' per pomo for current session
+        // --- PERSISTENCE LOAD ---
+        let dailyTotalMins = parseInt(localStorage.getItem('decay_dailyTotal')) || 0;
+        let savedLog = localStorage.getItem('decay_logHTML') || "";
+        let pomoStartTime = localStorage.getItem('decay_pomoStart') ? parseInt(localStorage.getItem('decay_pomoStart')) : null;
+        let activeSessionBlockSize = parseInt(localStorage.getItem('decay_blockSize')) || 25;
 
         const dom = {
             dayOfWeek: document.getElementById('day-of-week'),
@@ -279,10 +279,14 @@
             quarterFill: document.getElementById('quarter-fill'), quarterVal: document.getElementById('quarter-val')
         };
 
+        // Init Log and Total
+        dom.pomoLog.innerHTML = savedLog;
+        dom.pomoLogTotal.textContent = dailyTotalMins;
+
         for(let i=1; i<=60; i++) {
             let opt = document.createElement('option');
             opt.value = i; opt.innerHTML = `${i} Minutes`;
-            if(i === 25) opt.selected = true;
+            if(i === activeSessionBlockSize) opt.selected = true;
             dom.pomoSelect.appendChild(opt);
         }
 
@@ -368,75 +372,71 @@
 
             dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
             dom.globalCircle.style.fill = remColor;
+
+            // --- REAL TIME POMO CALCULATION ---
+            if(pomoStartTime) {
+                dom.pomoStatsLine.style.display = 'flex';
+                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
+                const blockSecs = activeSessionBlockSize * 60;
+                const currentPomoCount = Math.floor(elapsedSecs / blockSecs);
+                const remInBlock = blockSecs - (elapsedSecs % blockSecs);
+                
+                const p = (remInBlock / blockSecs) * 100;
+                dom.pomoDisplay.textContent = `${Math.floor((blockSecs - remInBlock)/60)}m / ${activeSessionBlockSize}m`;
+                dom.pomoCountDisplay.textContent = currentPomoCount;
+                dom.pomoCircle.setAttribute('r', (remInBlock / blockSecs) * 70);
+                dom.pomoCircle.style.fill = getPomoColor(p);
+            }
+
             generateHeatmap();
         }
 
-        // --- NEW CALCULATED LOG LOGIC ---
-
         function finalizeCurrentSession() {
-            if (pomoInterval) {
-                // Calculate actual focused mins: count * block size
-                const focusedMins = pomoCount * activeSessionBlockSize;
-                dailyTotalMins += focusedMins;
+            if (pomoStartTime) {
+                const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
+                const earned = Math.floor(elapsedSecs / (activeSessionBlockSize * 60)) * activeSessionBlockSize;
+                
+                dailyTotalMins += earned;
+                localStorage.setItem('decay_dailyTotal', dailyTotalMins);
                 dom.pomoLogTotal.textContent = dailyTotalMins;
 
-                // Update the visual log entry to show the "Yield"
                 const lastEntry = dom.pomoLog.firstChild;
-                if (lastEntry) {
+                if (lastEntry && !lastEntry.querySelector('.log-tag')) {
                     const tag = document.createElement('span');
                     tag.className = 'log-tag';
-                    tag.textContent = `YIELD: ${focusedMins}m`;
+                    tag.textContent = `YIELD: ${earned}m`;
                     lastEntry.appendChild(tag);
+                    localStorage.setItem('decay_logHTML', dom.pomoLog.innerHTML);
                 }
             }
         }
 
-        function addStartEntry(mins) {
+        dom.pomoStart.onclick = () => {
+            finalizeCurrentSession();
+            activeSessionBlockSize = parseInt(dom.pomoSelect.value);
+            pomoStartTime = Date.now();
+            
+            localStorage.setItem('decay_pomoStart', pomoStartTime);
+            localStorage.setItem('decay_blockSize', activeSessionBlockSize);
+
             const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const entry = document.createElement('div');
             entry.className = 'log-entry';
-            entry.innerHTML = `<span>▶ ${timeStr}</span> <span>SET: ${mins}m</span>`;
+            entry.innerHTML = `<span>▶ ${timeStr}</span> <span>SET: ${activeSessionBlockSize}m</span>`;
             dom.pomoLog.prepend(entry);
-        }
-
-        dom.pomoStart.onclick = () => {
-            // 1. Finalize old session if one was running
-            finalizeCurrentSession();
-            clearInterval(pomoInterval);
-
-            // 2. Set up new session
-            activeSessionBlockSize = parseInt(dom.pomoSelect.value);
-            pomoTotalTime = activeSessionBlockSize * 60; 
-            pomoTimeLeft = pomoTotalTime;
-            pomoCount = 0; // Reset count for the NEW session
+            localStorage.setItem('decay_logHTML', dom.pomoLog.innerHTML);
             
-            addStartEntry(activeSessionBlockSize);
-            dom.pomoStatsLine.style.display = 'flex';
-            
-            pomoInterval = setInterval(() => {
-                pomoTimeLeft--; 
-                if(pomoTimeLeft < 0) { 
-                    pomoCount++; 
-                    pomoTimeLeft = pomoTotalTime; 
-                }
-                const p = (pomoTimeLeft / pomoTotalTime) * 100;
-                dom.pomoDisplay.textContent = `${Math.floor((pomoTotalTime - pomoTimeLeft)/60)}m / ${activeSessionBlockSize}m`;
-                dom.pomoCountDisplay.textContent = pomoCount;
-                dom.pomoCircle.setAttribute('r', (pomoTimeLeft / pomoTotalTime) * 70);
-                dom.pomoCircle.style.fill = getPomoColor(p);
-            }, 1000);
+            updateProgress();
         };
 
         dom.pomoStop.onclick = () => { 
             finalizeCurrentSession();
-            clearInterval(pomoInterval); 
-            pomoInterval = null; 
+            pomoStartTime = null; 
+            localStorage.removeItem('decay_pomoStart');
             dom.pomoStatsLine.style.display = 'none'; 
             dom.pomoCircle.setAttribute('r', 70); 
             dom.pomoCircle.style.fill = 'var(--spent-color)'; 
         };
-        
-        // --- HEATMAP & UTILS ---
 
         function generateHeatmap() {
             const now = new Date(); dom.heatmapYear.textContent = now.getFullYear(); dom.heatmapGrid.innerHTML = '';
@@ -460,7 +460,11 @@
             dom.modeToggle.innerHTML = document.documentElement.classList.contains('dark-mode') ? '☀️' : '🌙';
         };
 
-        document.addEventListener('DOMContentLoaded', () => { generateRulerMarks(); updateProgress(); setInterval(updateProgress, 60000); });
+        document.addEventListener('DOMContentLoaded', () => { 
+            generateRulerMarks(); 
+            updateProgress(); 
+            setInterval(updateProgress, 1000); // Updated to 1s for the countdown
+        });
     </script>
 </body>
 </html>
