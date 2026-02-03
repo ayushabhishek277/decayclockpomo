@@ -263,6 +263,7 @@
         let savedLog = localStorage.getItem('decay_logHTML') || "";
         let pomoStartTime = localStorage.getItem('decay_pomoStart') ? parseInt(localStorage.getItem('decay_pomoStart')) : null;
         let activeSessionBlockSize = parseInt(localStorage.getItem('decay_blockSize')) || 25;
+        let lastDrawnDate = null; // The lock for 24-hour updates
 
         const dom = {
             dayOfWeek: document.getElementById('day-of-week'),
@@ -344,14 +345,13 @@
             }
         }
 
-        // --- THE RESET LOGIC ---
         function checkDailyReset() {
             const now = new Date();
             const today = now.toDateString();
             const lastResetDate = localStorage.getItem('decay_lastResetDate');
 
-            // Reset at exactly 11 PM or if we detect a date change
-            if ((now.getHours() === 23 && now.getMinutes() === 0 && now.getSeconds() === 0) || (lastResetDate !== today)) {
+            // Reset condition: Either it's 11 PM exactly OR we detect the date has changed since last visit
+            if ((now.getHours() === 23 && now.getMinutes() === 0 && now.getSeconds() === 0) || (lastResetDate && lastResetDate !== today)) {
                 localStorage.removeItem('decay_dailyTotal');
                 localStorage.removeItem('decay_logHTML');
                 localStorage.setItem('decay_lastResetDate', today);
@@ -359,11 +359,17 @@
                 dailyTotalMins = 0;
                 dom.pomoLog.innerHTML = "";
                 dom.pomoLogTotal.textContent = "0";
+                
+                // Trigger an update of long term metrics on reset
+                updateLongTermMetrics(true);
             }
         }
 
         function updateProgress() {
-            const now = new Date(); const cH = now.getHours(), cM = now.getMinutes();
+            const now = new Date(); const cH = now.getHours(), cM = now.getMinutes(), cS = now.getSeconds();
+            const todayKey = now.toDateString();
+
+            // High-frequency UI updates
             let mins = (cH < START_HOUR) ? 0 : (cH > END_HOUR || (cH === END_HOUR && cM > 0)) ? TOTAL_MINUTES : (cH * 60 + cM) - (START_HOUR * 60);
             const pElap = (mins / TOTAL_MINUTES) * 100, pRem = 100 - pElap;
             const remColor = getGradientColor(pRem);
@@ -380,10 +386,8 @@
             let curHourText = (cH >= START_HOUR && cH < END_HOUR) ? ` | Current Hour: ${60 - cM} Minutes Left` : '';
             dom.currentStatus.textContent = `The current time is ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, used ${pElap.toFixed(1)}% of total window.${curHourText}`;
             
-            const hDeg = (cH % 12) * 30 + (cM * 0.5);
-            const mDeg = cM * 6;
-            dom.hourHand.style.transform = `rotate(${hDeg}deg)`;
-            dom.minuteHand.style.transform = `rotate(${mDeg}deg)`;
+            dom.hourHand.style.transform = `rotate(${(cH % 12) * 30 + (cM * 0.5)}deg)`;
+            dom.minuteHand.style.transform = `rotate(${cM * 6}deg)`;
 
             const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
             dom.dayOfWeek.textContent = days[now.getDay()];
@@ -391,6 +395,7 @@
             dom.globalCircle.setAttribute('r', (pRem / 100) * 70);
             dom.globalCircle.style.fill = remColor;
 
+            // Update Pomodoro Visuals if active
             if(pomoStartTime) {
                 dom.pomoStatsLine.style.display = 'flex';
                 const elapsedSecs = Math.floor((Date.now() - pomoStartTime) / 1000);
@@ -403,12 +408,19 @@
                 dom.pomoCircle.setAttribute('r', (remInBlock / blockSecs) * 70);
                 dom.pomoCircle.style.fill = getPomoColor(p);
             }
+
+            // 24-HOUR LOCK: Check if we need to update heatmap/yearly stats
+            if (todayKey !== lastDrawnDate) {
+                updateLongTermMetrics();
+                lastDrawnDate = todayKey;
+                console.log("System: 24-Hour Cycle Updated");
+            }
         }
 
-        // --- EFFICIENCY GEAR: Run these only occasionally ---
-        function updateLongTermMetrics() {
+        function updateLongTermMetrics(force = false) {
             const now = new Date();
             const curY = now.getFullYear(), dS = getDayOfYear(now), totalD = isLeapYear(curY) ? 366 : 365;
+            
             dom.daysSpent.textContent = dS; dom.daysRemaining.textContent = totalD - dS;
             dom.currentYear.textContent = curY; dom.yearPercentage.textContent = `${((dS / totalD) * 100).toFixed(2)}%`;
             
@@ -495,17 +507,10 @@
 
         document.addEventListener('DOMContentLoaded', () => { 
             generateRulerMarks(); 
+            // Initialization: updateProgress will see lastDrawnDate is null and run heatmap once.
             updateProgress(); 
-            updateLongTermMetrics();
-            
-            // High frequency (UI update and reset check)
-            setInterval(() => {
-                updateProgress();
-                checkDailyReset();
-            }, 1000); 
-
-            // Low frequency (Heatmap and Yearly stats once an hour)
-            setInterval(updateLongTermMetrics, 3600000);
+            setInterval(updateProgress, 1000); 
+            setInterval(checkDailyReset, 1000);
         });
     </script>
 </body>
